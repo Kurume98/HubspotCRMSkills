@@ -2,7 +2,7 @@ import { LuaTool, LuaSkill } from "lua-cli";
 import { z } from "zod";
 import createContact from "./createContact";
 
-const createContactInputSchema = z.object({
+export const createContactInputSchema = z.object({
   email: z.string().email().optional().describe("Contact's email address (recommended for unique identification)"),
   firstname: z.string().optional().describe("Contact's first name"),
   lastname: z.string().optional().describe("Contact's last name"),
