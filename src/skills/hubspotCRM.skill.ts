@@ -1,6 +1,6 @@
 import { LuaTool, LuaSkill } from "lua-cli";
 import { z } from "zod";
-import createContact from "./createContact";
+import createContact, { updateContact } from "./createContact";
 import { updateDealStage, getDealPipelines, getDealById } from "./deals";
 import { getContactActivitySummary, searchContactByEmail } from "./engagements";
 
@@ -32,6 +32,15 @@ export const getDealPipelinesInputSchema = z.object({});
 export const getContactActivitySummaryInputSchema = z.object({
   contactId: z.string().optional().describe("HubSpot Contact ID to get activity for"),
   email: z.string().email().optional().describe("Email address to search for contact (alternative to contactId)"),
+});
+
+export const updateContactInputSchema = z.object({
+  contactId: z.string().describe("HubSpot Contact ID to update"),
+  email: z.string().email().optional().describe("New email address"),
+  firstname: z.string().optional().describe("New first name"),
+  lastname: z.string().optional().describe("New last name"),
+  phone: z.string().optional().describe("New phone number"),
+  company: z.string().optional().describe("New company name"),
 });
 
 class CreateContactTool implements LuaTool {
@@ -84,6 +93,18 @@ class CreateContactFromChatTool implements LuaTool {
     }
 
     return result;
+  }
+}
+
+class UpdateContactTool implements LuaTool {
+  name = "updateContact";
+  description = "Updates an existing contact's properties in HubSpot CRM";
+
+  inputSchema = updateContactInputSchema;
+
+  async execute(input: z.infer<typeof this.inputSchema>) {
+    const parsed = this.inputSchema.parse(input);
+    return await updateContact(parsed);
   }
 }
 
@@ -297,7 +318,26 @@ Converts inbound chat conversations into HubSpot contacts. Automatically checks 
 
 ---
 
-#### 3. updateDealStage
+#### 3. updateContact
+Updates an existing contact's properties in HubSpot CRM.
+
+**When to use:**
+- When contact information needs to be corrected or updated
+- After learning new details about a contact (new phone, company change, etc.)
+- To modify any contact field (email, name, phone, company)
+
+**Input Requirements:**
+- Contact ID is required (can be found via search or previous API calls)
+- At least one property to update must be provided
+
+**Example prompts:**
+- "Update contact 12345 with new phone number 555-1234"
+- "Change the company for contact ID 67890 to Acme Corp"
+- "Update John's contact to reflect his new email john.new@company.com"
+
+---
+
+#### 4. updateDealStage
 Updates the pipeline stage of an existing deal after sales activities like calls or meetings.
 
 **When to use:**
@@ -324,7 +364,7 @@ Updates the pipeline stage of an existing deal after sales activities like calls
 
 ---
 
-#### 4. getDealPipelines
+#### 5. getDealPipelines
 Retrieves all deal pipelines and their stages to help identify valid stage IDs.
 
 **When to use:**
@@ -338,7 +378,7 @@ Retrieves all deal pipelines and their stages to help identify valid stage IDs.
 
 ---
 
-#### 5. getContactActivitySummary
+#### 6. getContactActivitySummary
 Provides a comprehensive summary of a contact's recent marketing and sales engagements.
 
 **When to use:**
@@ -380,6 +420,7 @@ Ensure your HubSpot Private App has these scopes:
   tools: [
     new CreateContactTool(),
     new CreateContactFromChatTool(),
+    new UpdateContactTool(),
     new UpdateDealStageTool(),
     new GetDealPipelinesTool(),
     new GetContactActivitySummaryTool(),
