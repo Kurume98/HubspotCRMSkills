@@ -7,10 +7,7 @@
     "dev": "lua dev",
     "build": "tsc",
     "compile": "lua compile"
-  },
-  "dependencies": {
-    "lua-cli": "^3.1.0",
-    "zod": "^3.23.2"
+  
   },
   "devDependencies": {
     "@types/node": "^25.0.0",

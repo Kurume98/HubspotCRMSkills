@@ -1,11 +1,6 @@
-import { LuaTool, env } from "lua-cli";
+import { LuaTool } from "lua-cli";
 import { z } from "zod";
-
-const inputSchema = z.object({
-  dealId: z.string().describe("The HubSpot Deal ID to update"),
-  dealstage: z.string().describe("The new deal stage ID (e.g., 'qualifiedtobuy', 'closedwon', or numeric ID like '139921')"),
-  notes: z.string().optional().describe("Optional notes about why the stage was updated"),
-});
+import { getHubSpotConfig } from "../utils/hubspotHelpers";
 
 async function getDealById(dealId: string, token: string, baseUrl: string) {
   const url = `${baseUrl}/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,amount,closedate,pipeline`;
@@ -27,25 +22,27 @@ async function getDealById(dealId: string, token: string, baseUrl: string) {
 export default class UpdateDealStageTool implements LuaTool {
   name = "updateDealStage";
   description = "Updates the stage of an existing deal in HubSpot CRM, typically after a sales call or meeting";
-  inputSchema = inputSchema;
+  
+  inputSchema = z.object({
+    dealId: z.string().describe("The HubSpot Deal ID to update"),
+    dealstage: z.string().describe("The new deal stage ID (e.g., 'qualifiedtobuy', 'closedwon', or numeric ID like '139921')"),
+    notes: z.string().optional().describe("Optional notes about why the stage was updated"),
+  });
 
-  async execute(input: z.infer<typeof inputSchema>) {
-    const parsed = inputSchema.parse(input);
-
-    const TOKEN = env("HUBSPOT_PRIVATE_APP_TOKEN");
-    const HUBSPOT_BASE = (env("HUBSPOT_API_BASE_URL") || "https://api.hubapi.com").replace(/\/+$/, "");
+  async execute(input: z.infer<typeof this.inputSchema>) {
+    const { token: TOKEN, baseUrl: HUBSPOT_BASE } = getHubSpotConfig();
 
     if (!TOKEN) {
       return { ok: false, error: "Missing HUBSPOT_PRIVATE_APP_TOKEN in environment." };
     }
 
-    const currentDeal = await getDealById(parsed.dealId, TOKEN, HUBSPOT_BASE);
+    const currentDeal = await getDealById(input.dealId, TOKEN, HUBSPOT_BASE);
     if (!currentDeal.ok) {
-      return { ok: false, error: `Could not find deal with ID ${parsed.dealId}: ${currentDeal.error}` };
+      return { ok: false, error: `Could not find deal with ID ${input.dealId}: ${currentDeal.error}` };
     }
 
-    const url = `${HUBSPOT_BASE}/crm/v3/objects/deals/${parsed.dealId}`;
-    const properties = { dealstage: parsed.dealstage };
+    const url = `${HUBSPOT_BASE}/crm/v3/objects/deals/${input.dealId}`;
+    const properties = { dealstage: input.dealstage };
 
     try {
       const res = await fetch(url, {
@@ -73,7 +70,7 @@ export default class UpdateDealStageTool implements LuaTool {
         ok: true,
         id: responseBody?.id,
         properties: responseBody?.properties ?? {},
-        message: `Successfully updated deal stage to '${parsed.dealstage}'`,
+        message: `Successfully updated deal stage to '${input.dealstage}'`,
         previousDeal: currentDeal.deal,
       };
     } catch (err: unknown) {

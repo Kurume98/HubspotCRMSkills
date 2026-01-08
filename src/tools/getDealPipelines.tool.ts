@@ -1,16 +1,15 @@
-import { LuaTool, env } from "lua-cli";
+import { LuaTool } from "lua-cli";
 import { z } from "zod";
-
-const inputSchema = z.object({});
+import { getHubSpotConfig } from "../utils/hubspotHelpers";
 
 export default class GetDealPipelinesTool implements LuaTool {
   name = "getDealPipelines";
   description = "Retrieves all deal pipelines and their stages from HubSpot to help identify valid stage IDs";
-  inputSchema = inputSchema;
+  
+  inputSchema = z.object({});
 
   async execute() {
-    const TOKEN = env("HUBSPOT_PRIVATE_APP_TOKEN");
-    const HUBSPOT_BASE = (env("HUBSPOT_API_BASE_URL") || "https://api.hubapi.com").replace(/\/+$/, "");
+    const { token: TOKEN, baseUrl: HUBSPOT_BASE } = getHubSpotConfig();
 
     if (!TOKEN) {
       return { ok: false, error: "Missing HUBSPOT_PRIVATE_APP_TOKEN in environment." };

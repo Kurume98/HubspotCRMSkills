@@ -1,37 +1,8 @@
-import { LuaTool, env } from "lua-cli";
+import { LuaTool } from "lua-cli";
 import { z } from "zod";
-
-const inputSchema = z.object({
-  contactId: z.string().optional().describe("HubSpot Contact ID to get activity for"),
-  email: z.string().email().optional().describe("Email address to search for contact (alternative to contactId)"),
-});
+import { getHubSpotConfig, searchContactByEmail } from "../utils/hubspotHelpers";
 
 type EngagementType = "calls" | "emails" | "notes" | "tasks" | "meetings";
-
-async function searchContactByEmail(email: string, token: string, baseUrl: string) {
-  const url = `${baseUrl}/crm/v3/objects/contacts/search`;
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
-        properties: ["email", "firstname", "lastname"],
-      }),
-    });
-    const body = await res.json() as { results?: Array<{ id?: string }> };
-    if (res.ok && body.results && body.results.length > 0) {
-      return { ok: true, contactId: body.results[0].id };
-    }
-    return { ok: true, contactId: undefined };
-  } catch (err: unknown) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
 
 async function getContactAssociations(contactId: string, engagementType: EngagementType, token: string, baseUrl: string): Promise<string[]> {
   const url = `${baseUrl}/crm/v4/objects/contacts/${contactId}/associations/${engagementType}`;
@@ -80,24 +51,29 @@ function extractEngagementInfo(type: EngagementType, data: Record<string, unknow
 export default class GetContactActivitySummaryTool implements LuaTool {
   name = "getContactActivitySummary";
   description = "Summarizes a contact's recent marketing and sales activity including calls, emails, notes, tasks, and meetings";
-  inputSchema = inputSchema;
+  
+  inputSchema = z.object({
+    contactId: z.string().optional().describe("HubSpot Contact ID to get activity for"),
+    email: z.string().email().optional().describe("Email address to search for contact (alternative to contactId)"),
+  });
 
-  async execute(input: z.infer<typeof inputSchema>) {
-    const parsed = inputSchema.parse(input);
-
-    const TOKEN = env("HUBSPOT_PRIVATE_APP_TOKEN");
-    const HUBSPOT_BASE = (env("HUBSPOT_API_BASE_URL") || "https://api.hubapi.com").replace(/\/+$/, "");
+  async execute(input: z.infer<typeof this.inputSchema>) {
+    const { token: TOKEN, baseUrl: HUBSPOT_BASE } = getHubSpotConfig();
 
     if (!TOKEN) {
       return { ok: false, error: "Missing HUBSPOT_PRIVATE_APP_TOKEN in environment." };
     }
 
-    let contactId = parsed.contactId;
+    let contactId = input.contactId;
 
-    if (!contactId && parsed.email) {
-      const searchResult = await searchContactByEmail(parsed.email, TOKEN, HUBSPOT_BASE);
-      if (!searchResult.ok) return { ok: false, error: `Failed to search for contact: ${searchResult.error}` };
-      if (!searchResult.contactId) return { ok: false, error: `No contact found with email ${parsed.email}` };
+    if (!contactId && input.email) {
+      const searchResult = await searchContactByEmail(input.email, TOKEN, HUBSPOT_BASE);
+      if (!searchResult.ok) {
+        return { ok: false, error: `Failed to search for contact: ${searchResult.error}` };
+      }
+      if (!searchResult.contactId) {
+        return { ok: false, error: `No contact found with email ${input.email}` };
+      }
       contactId = searchResult.contactId;
     }
 
